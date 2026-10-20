@@ -1,4 +1,4 @@
-# Parallel and Quantized CNN Inference on Edge and GPU Hardware
+# GPU-Accelerated CNN Inference with Custom CUDA Kernels
 
 ![Status](https://img.shields.io/badge/status-ongoing-orange)
 ![Language](https://img.shields.io/badge/language-C%2FC%2B%2B%20%7C%20CUDA-blue)
@@ -8,84 +8,79 @@
 
 ## Overview
 
-Running a convolutional neural network (CNN) on low-power hardware is slow, because almost all of the time is spent in convolution and matrix multiplication. Libraries such as TensorFlow Lite make this faster but hide how they do it.
+Running a convolutional neural network (CNN) is computationally heavy, because almost all of the time is spent in convolution and matrix multiplication. Deep learning libraries make this fast on GPUs, but they hide how.
 
-This project builds a small CNN inference engine **from scratch in C/C++** and speeds it up step by step using different levels of parallelism. Each version is benchmarked for speed, scaling, accuracy and energy use on three platforms, from a Raspberry Pi to an NVIDIA GPU.
+This project implements CNN inference **from scratch in C/C++ and CUDA**, then optimizes the GPU kernels step by step. Each version is benchmarked for speed, scaling and accuracy against a serial CPU baseline and against PyTorch (cuDNN) on the same GPU, to show how much each optimization contributes and how close custom kernels can get to a vendor library.
 
 ## Objectives
 
 - Implement CNN inference (convolution, matrix multiplication, activation, pooling) without ML libraries.
-- Parallelize the bottleneck operations at every hardware level: cache, multicore, SIMD and GPU.
-- Measure the speedup and accuracy trade-off of INT8 quantization.
-- Compare each version against a reference implementation (TensorFlow Lite / ONNX Runtime).
-- Analyze scaling, parallel efficiency and energy efficiency across hardware.
+- Write and optimize custom CUDA kernels for the bottleneck operations.
+- Measure the effect of each optimization: shared-memory tiling, memory coalescing, block-size tuning and batching.
+- Measure the speed and accuracy trade-off of reduced precision (FP16).
+- Compare custom kernels against PyTorch/cuDNN and explain the results with a roofline model.
 
 ## Implementation Plan
 
 Each version adds one optimization on top of the previous one, so the gain from each technique can be measured separately.
 
-| # | Version | Technique |
-|---|---|---|
-| 1 | Serial baseline | Plain C loops; reference point for all speedups |
-| 2 | Cache-optimized | Loop tiling and blocking |
-| 3 | Multicore | OpenMP threads |
-| 4 | SIMD | ARM NEON (Raspberry Pi) and AVX (x86 CPU) |
-| 5 | Quantized | INT8 integer arithmetic |
-| 6 | GPU | CUDA kernels with shared memory and batched inference |
+| # | Version | Runs on | Technique |
+|---|---|---|---|
+| 1 | Serial baseline | CPU | Plain C loops; reference point for all speedups |
+| 2 | Naive CUDA | GPU | One thread per output value |
+| 3 | Optimized CUDA | GPU | Shared-memory tiling, memory coalescing, tuned block sizes |
+| 4 | Reduced precision + batching | GPU | FP16 arithmetic and batched inference |
 
-## Hardware
+**Planned extensions:** OpenMP multicore CPU version, INT8 quantization, kernel fusion of convolution and activation.
 
-| Platform | Purpose |
-|---|---|
-| Raspberry Pi 4/5 (4 ARM cores, NEON) | Edge device |
-| Multicore x86 CPU (AVX) | Desktop/laptop comparison |
-| NVIDIA GPU | GPU acceleration |
+## Reference Implementation
 
-Full specifications and compiler flags will be listed with the results.
+PyTorch running the same trained model on the same GPU, which uses NVIDIA cuDNN internally.
 
 ## Dataset and Model
 
 - **Dataset:** CIFAR-10 (60,000 images, 10 classes)
-- **Model:** a small CNN trained in PyTorch, with weights exported for the C/C++ engine
+- **Model:** a small CNN trained in PyTorch, with weights exported for the C/CUDA engine
+
+## Hardware
+
+A single NVIDIA GPU (Google Colab / Kaggle or a local GPU) and a standard multicore CPU for the serial baseline. The exact GPU, CPU, CUDA version and compiler flags will be listed with the results.
 
 ## Evaluation Metrics
 
 - **Speed:** latency per image, throughput (images/second), speedup over the serial baseline
-- **Scaling:** speedup and parallel efficiency for 1, 2, 4 and 8 threads; GPU throughput by batch size
+- **Scaling:** throughput as batch size increases
 - **Quality:** top-1 accuracy on the CIFAR-10 test set for every version
-- **Energy:** images per joule on the Raspberry Pi
-- **Analysis:** roofline model to show whether each version is compute-bound or memory-bound
+- **Analysis:** roofline model showing whether each kernel is compute-bound or memory-bound
 
 ## Targets
 
-- At least 3x speedup over the serial baseline on a 4-core Raspberry Pi
-- At least 20x throughput on the GPU compared with a single CPU core
-- Less than 1% accuracy loss from INT8 quantization
+- At least 50x throughput over the serial CPU baseline
+- Less than 1% accuracy loss with FP16
+- Custom kernels within 3x of PyTorch/cuDNN speed
 
 ## Roadmap
 
-- [ ] Literature review
+- [ ] Literature review and CUDA fundamentals
 - [ ] Train and export the CNN model
-- [ ] Serial baseline
-- [ ] Cache-optimized version
-- [ ] OpenMP multicore version
-- [ ] SIMD version (NEON / AVX)
-- [ ] INT8 quantized version
-- [ ] CUDA GPU version
-- [ ] Benchmarking and scaling experiments
-- [ ] Energy measurements and roofline analysis
+- [ ] Serial CPU baseline
+- [ ] Naive CUDA version
+- [ ] Optimized CUDA version
+- [ ] FP16 and batched inference
+- [ ] Benchmarking against PyTorch/cuDNN
+- [ ] Roofline analysis
 - [ ] Research paper
+- [ ] *(Extension)* OpenMP, INT8, kernel fusion
 
 ## Planned Repository Structure
 
 ```
 ├── model/         # PyTorch training script and exported weights
 ├── src/
-│   ├── serial/    # Baseline implementation
-│   ├── openmp/    # Multicore version
-│   ├── simd/      # NEON / AVX version
-│   ├── int8/      # Quantized version
-│   └── cuda/      # GPU version
+│   ├── serial/    # CPU baseline
+│   ├── cuda_naive/
+│   ├── cuda_opt/  # Optimized kernels
+│   └── fp16/      # Reduced precision version
 ├── benchmarks/    # Benchmark scripts and raw results
 ├── results/       # Graphs and analysis
 └── docs/          # Reports and paper
@@ -93,7 +88,7 @@ Full specifications and compiler flags will be listed with the results.
 
 ## Technologies
 
-C/C++ · OpenMP · CUDA · ARM NEON · AVX · PyTorch · TensorFlow Lite · Python · Matplotlib · Raspberry Pi
+C/C++ · CUDA · OpenMP · PyTorch · Python · Matplotlib
 
 ## Author
 
